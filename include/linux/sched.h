@@ -2851,6 +2851,7 @@ extern struct mm_struct * mm_alloc(void);
 
 /* mmdrop drops the mm and the page tables */
 extern void __mmdrop(struct mm_struct *);
+
 static inline void mmdrop(struct mm_struct *mm)
 {
 	if (unlikely(atomic_dec_and_test(&mm->mm_count)))
@@ -2861,6 +2862,17 @@ static inline bool mmget_not_zero(struct mm_struct *mm)
 {
 	return atomic_inc_not_zero(&mm->mm_users);
 }
+
+#ifdef CONFIG_PREEMPT_RT_BASE
+extern void __mmdrop_delayed(struct rcu_head *rhp);
+static inline void mmdrop_delayed(struct mm_struct *mm)
+{
+	if (atomic_dec_and_test(&mm->mm_count))
+		call_rcu(&mm->delayed_drop, __mmdrop_delayed);
+}
+#else
+# define mmdrop_delayed(mm)	mmdrop(mm)
+#endif
 
 /* mmput gets rid of the mappings and all user-space */
 extern void mmput(struct mm_struct *);

@@ -699,6 +699,19 @@ struct mm_struct *mm_alloc(void)
 	return mm_init(mm, current);
 }
 
+#ifdef CONFIG_PREEMPT_RT_BASE
+/*
+ * RCU callback for delayed mm drop. Not strictly rcu, but we don't
+ * want another facility to make this work.
+ */
+void __mmdrop_delayed(struct rcu_head *rhp)
+{
+	struct mm_struct *mm = container_of(rhp, struct mm_struct, delayed_drop);
+
+	__mmdrop(mm);
+}
+#endif
+
 /*
  * Called when the last reference to the mm
  * is dropped: either by a lazy thread or by
