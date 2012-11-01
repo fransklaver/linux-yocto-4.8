@@ -34,6 +34,7 @@ void common(void) {
 
 	BLANK();
 	OFFSET(TASK_addr_limit, task_struct, thread.addr_limit);
+	OFFSET(TI_preempt_lazy_count, thread_info, preempt_lazy_count);
 
 	BLANK();
 	OFFSET(crypto_tfm_ctx_offset, crypto_tfm, __crt_ctx);
@@ -88,4 +89,5 @@ void common(void) {
 
 	BLANK();
 	DEFINE(PTREGS_SIZE, sizeof(struct pt_regs));
+	DEFINE(_PREEMPT_ENABLED, PREEMPT_ENABLED);
 }
