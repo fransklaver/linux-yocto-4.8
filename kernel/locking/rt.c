@@ -353,6 +353,16 @@ int  rt_down_write_trylock(struct rw_semaphore *rwsem)
 }
 EXPORT_SYMBOL(rt_down_write_trylock);
 
+int  rt_down_write_killable(struct rw_semaphore *rwsem)
+{
+	int ret = rt_mutex_lock_killable(&rwsem->lock);
+
+	if (ret)
+		rwsem_acquire(&rwsem->dep_map, 0, 1, _RET_IP_);
+	return ret;
+}
+EXPORT_SYMBOL(rt_down_write_killable);
+
 void  rt_down_write(struct rw_semaphore *rwsem)
 {
 	rwsem_acquire(&rwsem->dep_map, 0, 0, _RET_IP_);
