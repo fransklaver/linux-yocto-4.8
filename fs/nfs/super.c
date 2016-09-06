@@ -102,6 +102,8 @@ enum {
 	Opt_mountport,
 	Opt_mountvers,
 	Opt_minorversion,
+	Opt_mountprog,
+	Opt_nfsprog,
 
 	/* Mount options that take string arguments */
 	Opt_nfsvers,
@@ -167,6 +169,8 @@ static const match_table_t nfs_mount_option_tokens = {
 	{ Opt_mountport, "mountport=%s" },
 	{ Opt_mountvers, "mountvers=%s" },
 	{ Opt_minorversion, "minorversion=%s" },
+	{ Opt_mountprog, "mountprog=%s" },
+	{ Opt_nfsprog, "nfsprog=%s" },
 
 	{ Opt_nfsvers, "nfsvers=%s" },
 	{ Opt_nfsvers, "vers=%s" },
@@ -923,10 +927,14 @@ static struct nfs_parsed_mount_data *nfs_alloc_parsed_mount_data(void)
 
 	data = kzalloc(sizeof(*data), GFP_KERNEL);
 	if (data) {
+		data->timeo		= NFS_UNSPEC_TIMEO;
+		data->retrans		= NFS_UNSPEC_RETRANS;
 		data->acregmin		= NFS_DEF_ACREGMIN;
 		data->acregmax		= NFS_DEF_ACREGMAX;
 		data->acdirmin		= NFS_DEF_ACDIRMIN;
 		data->acdirmax		= NFS_DEF_ACDIRMAX;
+		data->nfs_prog		= NFS_PROGRAM;
+		data->mount_prog	= NFS_MNT_PROGRAM;
 		data->mount_server.port	= NFS_UNSPEC_PORT;
 		data->nfs_server.port	= NFS_UNSPEC_PORT;
 		data->nfs_server.protocol = XPRT_TRANSPORT_TCP;
@@ -1189,6 +1197,19 @@ static int nfs_get_option_ul(substring_t args[], unsigned long *option)
 	return rc;
 }
 
+static int nfs_get_option_ul_bound(substring_t args[], unsigned long *option,
+		unsigned long l_bound, unsigned long u_bound)
+{
+	int ret;
+
+	ret = nfs_get_option_ul(args, option);
+	if (ret != 0)
+		return ret;
+	if (*option < l_bound || *option > u_bound)
+		return -ERANGE;
+	return 0;
+}
+
 /*
  * Error-check and convert a string of mount options from user space into
  * a data structure.  The whole mount string is processed; bad options are
@@ -1352,12 +1373,12 @@ static int nfs_parse_mount_options(char *raw,
 			mnt->bsize = option;
 			break;
 		case Opt_timeo:
-			if (nfs_get_option_ul(args, &option) || option == 0)
+			if (nfs_get_option_ul_bound(args, &option, 1, INT_MAX))
 				goto out_invalid_value;
 			mnt->timeo = option;
 			break;
 		case Opt_retrans:
-			if (nfs_get_option_ul(args, &option) || option == 0)
+			if (nfs_get_option_ul_bound(args, &option, 0, INT_MAX))
 				goto out_invalid_value;
 			mnt->retrans = option;
 			break;
@@ -1380,6 +1401,26 @@ static int nfs_parse_mount_options(char *raw,
 			if (nfs_get_option_ul(args, &option))
 				goto out_invalid_value;
 			mnt->acdirmax = option;
+			break;
+		case Opt_mountprog:
+			string = match_strdup(args);
+			if (string == NULL)
+				goto out_nomem;
+			rc = kstrtoul(string, 10, &option);
+			kfree(string);
+			if (rc != 0)
+				goto out_invalid_value;
+			mnt->mount_prog = option;
+			break;
+		case Opt_nfsprog:
+			string = match_strdup(args);
+			if (string == NULL)
+				goto out_nomem;
+			rc = kstrtoul(string, 10, &option);
+			kfree(string);
+			if (rc != 0)
+			       goto out_invalid_value;
+			mnt->nfs_prog = option;
 			break;
 		case Opt_actimeo:
 			if (nfs_get_option_ul(args, &option))
@@ -1772,7 +1813,7 @@ static int nfs_request_mount(struct nfs_parsed_mount_data *args,
 	 * Now ask the mount server to map our export path
 	 * to a file handle.
 	 */
-	status = nfs_mount(&request);
+	status = nfs_mount(&request,args->mount_prog);
 	if (status != 0) {
 		dfprintk(MOUNT, "NFS: unable to mount server %s, error %d\n",
 				request.hostname, status);
@@ -1991,6 +2032,8 @@ static int nfs23_validate_mount_data(void *options,
 			goto out_no_sec;
 	case 5:
 		memset(data->context, 0, sizeof(data->context));
+	case 7:
+		args->nfs_prog = (data->version >= 7) ? data->nfs_prog : NFS_PROGRAM;
 	case 6:
 		if (data->flags & NFS_MOUNT_VER3) {
 			if (data->root.size > NFS3_FHSIZE || data->root.size == 0)
@@ -2139,6 +2182,7 @@ static int nfs_validate_text_mount_data(void *options,
 	int max_namelen = PAGE_SIZE;
 	int max_pathlen = NFS_MAXPATHLEN;
 	struct sockaddr *sap = (struct sockaddr *)&args->nfs_server.address;
+	args->nfs_prog		= NFS_PROGRAM;
 
 	if (nfs_parse_mount_options((char *)options, args) == 0)
 		return -EINVAL;
@@ -2742,6 +2786,8 @@ static int nfs4_validate_mount_data(void *options,
 		goto out_no_data;
 
 	args->version = 4;
+
+	args->nfs_prog = NFS_PROGRAM;
 
 	switch (data->version) {
 	case 1:
