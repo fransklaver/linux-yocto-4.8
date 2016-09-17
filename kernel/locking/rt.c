@@ -377,6 +377,16 @@ void  rt_down_write_nested(struct rw_semaphore *rwsem, int subclass)
 }
 EXPORT_SYMBOL(rt_down_write_nested);
 
+int  rt_down_write_killable_nested(struct rw_semaphore *rwsem, int subclass)
+{
+	int ret = rt_mutex_lock_killable(&rwsem->lock);
+
+	if (ret)
+		rwsem_acquire(&rwsem->dep_map, subclass, 0, _RET_IP_);
+	return ret;
+}
+EXPORT_SYMBOL(rt_down_write_killable_nested);
+
 void rt_down_write_nested_lock(struct rw_semaphore *rwsem,
 			       struct lockdep_map *nest)
 {
