@@ -266,13 +266,13 @@ static int yaffs_readpage_nolock(struct file *f, struct page *pg)
 	struct yaffs_obj *obj;
 	unsigned char *pg_buf;
 	int ret;
-	loff_t pos = ((loff_t) pg->index) << PAGE_CACHE_SHIFT;
+	loff_t pos = ((loff_t) pg->index) << PAGE_SHIFT;
 	struct yaffs_dev *dev;
 
 	yaffs_trace(YAFFS_TRACE_OS,
 		"yaffs_readpage_nolock at %lld, size %08x",
 		(long long)pos,
-		(unsigned)PAGE_CACHE_SIZE);
+		(unsigned)PAGE_SIZE);
 
 	obj = yaffs_dentry_to_obj(f->f_path.dentry);
 
@@ -290,7 +290,7 @@ static int yaffs_readpage_nolock(struct file *f, struct page *pg)
 
 	yaffs_gross_lock(dev);
 
-	ret = yaffs_file_rd(obj, pg_buf, pos, PAGE_CACHE_SIZE);
+	ret = yaffs_file_rd(obj, pg_buf, pos, PAGE_SIZE);
 
 	yaffs_gross_unlock(dev);
 
@@ -400,22 +400,22 @@ static int yaffs_writepage(struct page *page)
 		BUG();
 	i_size = i_size_read(inode);
 
-	end_index = i_size >> PAGE_CACHE_SHIFT;
+	end_index = i_size >> PAGE_SHIFT;
 
 	if (page->index < end_index)
-		n_bytes = PAGE_CACHE_SIZE;
+		n_bytes = PAGE_SIZE;
 	else {
-		n_bytes = i_size & (PAGE_CACHE_SIZE - 1);
+		n_bytes = i_size & (PAGE_SIZE - 1);
 
 		if (page->index > end_index || !n_bytes) {
 			yaffs_trace(YAFFS_TRACE_OS,
 				"yaffs_writepage at %lld, inode size = %lld!!",
-				((loff_t)page->index) << PAGE_CACHE_SHIFT,
+				((loff_t)page->index) << PAGE_SHIFT,
 				inode->i_size);
 			yaffs_trace(YAFFS_TRACE_OS,
 				"                -> don't care!!");
 
-			zero_user_segment(page, 0, PAGE_CACHE_SIZE);
+			zero_user_segment(page, 0, PAGE_SIZE);
 			set_page_writeback(page);
 			unlock_page(page);
 			end_page_writeback(page);
@@ -423,8 +423,8 @@ static int yaffs_writepage(struct page *page)
 		}
 	}
 
-	if (n_bytes != PAGE_CACHE_SIZE)
-		zero_user_segment(page, n_bytes, PAGE_CACHE_SIZE);
+	if (n_bytes != PAGE_SIZE)
+		zero_user_segment(page, n_bytes, PAGE_SIZE);
 
 	get_page(page);
 
@@ -436,13 +436,13 @@ static int yaffs_writepage(struct page *page)
 
 	yaffs_trace(YAFFS_TRACE_OS,
 		"yaffs_writepage at %lld, size %08x",
-		((loff_t)page->index) << PAGE_CACHE_SHIFT, n_bytes);
+		((loff_t)page->index) << PAGE_SHIFT, n_bytes);
 	yaffs_trace(YAFFS_TRACE_OS,
 		"writepag0: obj = %lld, ino = %lld",
 		obj->variant.file_variant.file_size, inode->i_size);
 
 	n_written = yaffs_wr_file(obj, buffer,
-				  ((loff_t)page->index) << PAGE_CACHE_SHIFT, n_bytes, 0);
+				  ((loff_t)page->index) << PAGE_SHIFT, n_bytes, 0);
 
 	yaffs_set_super_dirty(dev);
 
@@ -505,7 +505,7 @@ static int yaffs_write_begin(struct file *filp, struct address_space *mapping,
 			     struct page **pagep, void **fsdata)
 {
 	struct page *pg = NULL;
-	pgoff_t index = pos >> PAGE_CACHE_SHIFT;
+	pgoff_t index = pos >> PAGE_SHIFT;
 
 	int ret = 0;
 	int space_held = 0;
@@ -554,7 +554,7 @@ out:
 		yaffs_release_space(filp);
 	if (pg) {
 		unlock_page(pg);
-		page_cache_release(pg);
+		put_page(pg);
 	}
 	return ret;
 }
@@ -638,7 +638,7 @@ static int yaffs_write_end(struct file *filp, struct address_space *mapping,
 {
 	int ret = 0;
 	void *addr, *kva;
-	uint32_t offset_into_page = pos & (PAGE_CACHE_SIZE - 1);
+	uint32_t offset_into_page = pos & (PAGE_SIZE - 1);
 
 	kva = kmap(pg);
 	addr = kva + offset_into_page;
@@ -660,7 +660,7 @@ static int yaffs_write_end(struct file *filp, struct address_space *mapping,
 
 	yaffs_release_space(filp);
 	unlock_page(pg);
-	page_cache_release(pg);
+	put_page(pg);
 	return ret;
 }
 #else
@@ -670,7 +670,7 @@ static int yaffs_commit_write(struct file *f, struct page *pg, unsigned offset,
 {
 	void *addr, *kva;
 
-	loff_t pos = (((loff_t) pg->index) << PAGE_CACHE_SHIFT) + offset;
+	loff_t pos = (((loff_t) pg->index) << PAGE_SHIFT) + offset;
 	int n_bytes = to - offset;
 	int n_written;
 
@@ -919,10 +919,10 @@ static int yaffs_setattr(struct dentry *dentry, struct iattr *attr)
 	return error;
 }
 
-static int yaffs_setxattr(struct dentry *dentry, const char *name,
-		   const void *value, size_t size, int flags)
+static int yaffs_setxattr(struct dentry *dentry, struct inode *inode,
+			  const char *name, const void *value, size_t size,
+			  int flags)
 {
-	struct inode *inode = dentry->d_inode;
 	int error = 0;
 	struct yaffs_dev *dev;
 	struct yaffs_obj *obj = yaffs_inode_to_obj(inode);
@@ -952,10 +952,9 @@ static int yaffs_setxattr(struct dentry *dentry, const char *name,
 	return error;
 }
 
-static ssize_t yaffs_getxattr(struct dentry * dentry, const char *name,
-			void *buff, size_t size)
+static ssize_t yaffs_getxattr(struct dentry * dentry, struct inode *inode,
+			      const char *name, void *buff, size_t size)
 {
-	struct inode *inode = dentry->d_inode;
 	int error = 0;
 	struct yaffs_dev *dev;
 	struct yaffs_obj *obj = yaffs_inode_to_obj(inode);
@@ -1060,7 +1059,8 @@ static int yaffs_readlink(struct dentry *dentry, char __user * buffer,
 }
 
 #if (YAFFS_NEW_FOLLOW_LINK == 1)
-static const char *yaffs_follow_link(struct dentry *dentry, void **cookie)
+static const char *yaffs_get_link(struct dentry *dentry, struct inode *inode,
+				  struct delayed_call *done)
 {
 	void *ret;
 #else
@@ -1070,8 +1070,12 @@ static int yaffs_follow_link(struct dentry *dentry, struct nameidata *nd)
 #endif
 	unsigned char *alias;
 	int ret_int = 0;
-	struct yaffs_dev *dev = yaffs_dentry_to_obj(dentry)->my_dev;
+	struct yaffs_dev *dev;
 
+	if (!dentry)
+		return ERR_PTR(-ECHILD);
+
+	dev = yaffs_dentry_to_obj(dentry)->my_dev;
 	yaffs_gross_lock(dev);
 
 	alias = yaffs_get_symlink_alias(yaffs_dentry_to_obj(dentry));
@@ -1082,7 +1086,7 @@ static int yaffs_follow_link(struct dentry *dentry, struct nameidata *nd)
 		goto out;
 	}
 #if (YAFFS_NEW_FOLLOW_LINK == 1)
-	*cookie = alias;
+	set_delayed_call(done, kfree_link, alias);
 	ret = alias;
 out:
 	if (ret_int)
@@ -1113,18 +1117,12 @@ static void yaffs_put_inode(struct inode *inode)
 }
 #endif
 
-#if (YAFFS_NEW_FOLLOW_LINK == 1)
-void yaffs_put_link(struct inode *inode, void *cookie)
-{
-	kfree(cookie);
-}
-#endif
-
 static const struct inode_operations yaffs_symlink_inode_operations = {
 	.readlink = yaffs_readlink,
-	.follow_link = yaffs_follow_link,
 #if (YAFFS_NEW_FOLLOW_LINK == 1)
-	.put_link = yaffs_put_link,
+	.get_link = yaffs_get_link,
+#else
+	.follow_link = yaffs_follow_link,
 #endif
 	.setattr = yaffs_setattr,
 	.setxattr = yaffs_setxattr,
@@ -1787,7 +1785,7 @@ static int yaffs_readdir(struct file *file, struct dir_context *ctx)
 			yaffs_gross_unlock(dev);
 
 			if (!dir_emit(ctx, name, strlen(name),
-				      this_inode, this_type) < 0) {
+				      this_inode, this_type)) {
 				yaffs_gross_lock(dev);
 				goto out;
 			}
@@ -2836,8 +2834,8 @@ static struct super_block *yaffs_internal_read_super(int yaffs_version,
 		return NULL;
 	}
 
-	sb->s_blocksize = PAGE_CACHE_SIZE;
-	sb->s_blocksize_bits = PAGE_CACHE_SHIFT;
+	sb->s_blocksize = PAGE_SIZE;
+	sb->s_blocksize_bits = PAGE_SHIFT;
 
 	yaffs_trace(YAFFS_TRACE_OS,
 		"yaffs_read_super: Using yaffs%d", yaffs_version);
