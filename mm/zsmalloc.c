@@ -1423,7 +1423,7 @@ void *zs_map_object(struct zs_pool *pool, unsigned long handle,
 	class = pool->size_class[class_idx];
 	off = (class->size * obj_idx) & ~PAGE_MASK;
 
-	area = per_cpu_ptr(&zs_map_area, get_cpu_light());
+	area = &get_cpu_var(zs_map_area);
 	area->vm_mm = mm;
 	if (off + class->size <= PAGE_SIZE) {
 		/* this object is contained entirely within a page */
@@ -1477,7 +1477,7 @@ void zs_unmap_object(struct zs_pool *pool, unsigned long handle)
 
 		__zs_unmap_object(area, pages, off, class->size);
 	}
-	put_cpu_light();
+	put_cpu_var(zs_map_area);
 
 	migrate_read_unlock(zspage);
 	unpin_tag(handle);
