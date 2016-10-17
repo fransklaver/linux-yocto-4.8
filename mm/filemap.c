@@ -220,7 +220,7 @@ static void page_cache_tree_delete(struct address_space *mapping,
 			node->private_data = mapping;
 			local_lock(workingset_shadow_lock);
 			list_lru_add(&__workingset_shadow_nodes,
-					&node->private_list);
+				     &node->private_list);
 			local_unlock(workingset_shadow_lock);
 		}
 	}
