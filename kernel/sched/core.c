@@ -1199,8 +1199,8 @@ int migrate_me(void)
 	struct migration_arg arg;
 	struct cpumask *cpumask;
 	struct cpumask *mask;
-	struct rq_flags rf;
 	unsigned int dest_cpu;
+	struct rq_flags rf;
 	struct rq *rq;
 
 	/*
@@ -3735,7 +3735,6 @@ asmlinkage __visible void __sched notrace preempt_schedule(void)
 		return;
 	if (!preemptible_lazy())
 		return;
-
 	preempt_schedule_common();
 }
 NOKPROBE_SYMBOL(preempt_schedule);
@@ -3761,6 +3760,7 @@ asmlinkage __visible void __sched notrace preempt_schedule_notrace(void)
 
 	if (likely(!preemptible()))
 		return;
+
 	if (!preemptible_lazy())
 		return;
 
@@ -5693,6 +5693,7 @@ void idle_task_exit(void)
 	 * call mmdrop() nor mmdrop_delayed() from here.
 	 */
 	per_cpu(idle_last_mm, smp_processor_id()) = mm;
+
 }
 
 /*

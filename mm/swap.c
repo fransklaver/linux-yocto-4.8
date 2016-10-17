@@ -51,7 +51,6 @@ static DEFINE_PER_CPU(struct pagevec, lru_deactivate_pvecs);
 #ifdef CONFIG_SMP
 static DEFINE_PER_CPU(struct pagevec, activate_page_pvecs);
 #endif
-
 static DEFINE_LOCAL_IRQ_LOCK(rotate_lock);
 DEFINE_LOCAL_IRQ_LOCK(swapvec_lock);
 
@@ -673,7 +672,6 @@ void lru_add_drain(void)
 	lru_add_drain_cpu(local_lock_cpu(swapvec_lock));
 	local_unlock_cpu(swapvec_lock);
 }
-
 
 #ifdef CONFIG_PREEMPT_RT_BASE
 static inline void remote_lru_add_drain(int cpu, struct cpumask *has_work)

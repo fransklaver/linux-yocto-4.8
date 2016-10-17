@@ -31,10 +31,10 @@ void common(void) {
 	BLANK();
 	OFFSET(TI_flags, thread_info, flags);
 	OFFSET(TI_status, thread_info, status);
+	OFFSET(TI_preempt_lazy_count, thread_info, preempt_lazy_count);
 
 	BLANK();
 	OFFSET(TASK_addr_limit, task_struct, thread.addr_limit);
-	OFFSET(TI_preempt_lazy_count, thread_info, preempt_lazy_count);
 
 	BLANK();
 	OFFSET(crypto_tfm_ctx_offset, crypto_tfm, __crt_ctx);
