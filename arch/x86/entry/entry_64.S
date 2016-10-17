@@ -421,12 +421,6 @@ ENTRY(irq_entries_start)
     .endr
 END(irq_entries_start)
 
-/* Load thread_info address into "reg" */
-/* XXX fixme - move lazy out of thread info like upstream trend. */
-#define GET_THREAD_INFO(reg) \
-	_ASM_MOV PER_CPU_VAR(cpu_current_top_of_stack),reg ; \
-	_ASM_SUB $(THREAD_SIZE),reg ;
-
 /*
  * Interrupt entry/exit.
  *

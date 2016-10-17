@@ -75,6 +75,10 @@ struct thread_info {
 
 #include <asm/asm-offsets.h>
 
+#define GET_THREAD_INFO(reg) \
+	_ASM_MOV PER_CPU_VAR(cpu_current_top_of_stack),reg ; \
+	_ASM_SUB $(THREAD_SIZE),reg ;
+
 #endif
 
 /*
