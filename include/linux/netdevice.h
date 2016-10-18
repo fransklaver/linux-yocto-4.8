@@ -2410,7 +2410,6 @@ void synchronize_net(void);
 int init_dummy_netdev(struct net_device *dev);
 
 #define XMIT_RECURSION_LIMIT	10
-
 #ifdef CONFIG_PREEMPT_RT_FULL
 static inline int dev_recursion_level(void)
 {
@@ -2419,17 +2418,17 @@ static inline int dev_recursion_level(void)
 
 static inline int xmit_rec_read(void)
 {
-       return current->xmit_recursion;
+	return current->xmit_recursion;
 }
 
 static inline void xmit_rec_inc(void)
 {
-       current->xmit_recursion++;
+	current->xmit_recursion++;
 }
 
 static inline void xmit_rec_dec(void)
 {
-       current->xmit_recursion--;
+	current->xmit_recursion--;
 }
 
 #else
