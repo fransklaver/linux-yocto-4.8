@@ -351,16 +351,6 @@ int  rt_down_write_trylock(struct rw_semaphore *rwsem)
 }
 EXPORT_SYMBOL(rt_down_write_trylock);
 
-int  rt_down_write_killable(struct rw_semaphore *rwsem)
-{
-	int ret = rt_mutex_lock_killable(&rwsem->lock);
-
-	if (ret)
-		rwsem_acquire(&rwsem->dep_map, 0, 1, _RET_IP_);
-	return ret;
-}
-EXPORT_SYMBOL(rt_down_write_killable);
-
 void  rt_down_write(struct rw_semaphore *rwsem)
 {
 	rwsem_acquire(&rwsem->dep_map, 0, 0, _RET_IP_);
@@ -368,22 +358,36 @@ void  rt_down_write(struct rw_semaphore *rwsem)
 }
 EXPORT_SYMBOL(rt_down_write);
 
+int rt_down_write_killable(struct rw_semaphore *rwsem)
+{
+	int ret;
+
+	rwsem_acquire(&rwsem->dep_map, 0, 0, _RET_IP_);
+	ret = rt_mutex_lock_killable(&rwsem->lock);
+	if (ret)
+		rwsem_release(&rwsem->dep_map, 1, _RET_IP_);
+	return ret;
+}
+EXPORT_SYMBOL(rt_down_write_killable);
+
+int rt_down_write_killable_nested(struct rw_semaphore *rwsem, int subclass)
+{
+	int ret;
+
+	rwsem_acquire(&rwsem->dep_map, subclass, 0, _RET_IP_);
+	ret = rt_mutex_lock_killable(&rwsem->lock);
+	if (ret)
+		rwsem_release(&rwsem->dep_map, 1, _RET_IP_);
+	return ret;
+}
+EXPORT_SYMBOL(rt_down_write_killable_nested);
+
 void  rt_down_write_nested(struct rw_semaphore *rwsem, int subclass)
 {
 	rwsem_acquire(&rwsem->dep_map, subclass, 0, _RET_IP_);
 	rt_mutex_lock(&rwsem->lock);
 }
 EXPORT_SYMBOL(rt_down_write_nested);
-
-int  rt_down_write_killable_nested(struct rw_semaphore *rwsem, int subclass)
-{
-	int ret = rt_mutex_lock_killable(&rwsem->lock);
-
-	if (ret)
-		rwsem_acquire(&rwsem->dep_map, subclass, 0, _RET_IP_);
-	return ret;
-}
-EXPORT_SYMBOL(rt_down_write_killable_nested);
 
 void rt_down_write_nested_lock(struct rw_semaphore *rwsem,
 			       struct lockdep_map *nest)
