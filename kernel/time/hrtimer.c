@@ -1903,18 +1903,25 @@ int hrtimers_dead_cpu(unsigned int scpu)
 #endif /* CONFIG_HOTPLUG_CPU */
 
 #ifdef CONFIG_PREEMPT_RT_BASE
+
 static void run_hrtimer_softirq(struct softirq_action *h)
 {
 	hrtimer_rt_run_pending();
 }
+
+static void hrtimers_open_softirq(void)
+{
+	open_softirq(HRTIMER_SOFTIRQ, run_hrtimer_softirq);
+}
+
+#else
+static void hrtimers_open_softirq(void) { }
 #endif
 
 void __init hrtimers_init(void)
 {
 	hrtimers_prepare_cpu(smp_processor_id());
-#ifdef CONFIG_PREEMPT_RT_BASE
-	open_softirq(HRTIMER_SOFTIRQ, run_hrtimer_softirq);
-#endif
+	hrtimers_open_softirq();
 }
 
 /**
