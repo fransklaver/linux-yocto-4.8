@@ -3,7 +3,6 @@
 
 #include <linux/atomic.h>
 #include <linux/list.h>
-#include <linux/wait.h>
 #include <linux/rculist.h>
 #include <linux/rculist_bl.h>
 #include <linux/spinlock.h>
@@ -12,6 +11,7 @@
 #include <linux/rcupdate.h>
 #include <linux/lockref.h>
 #include <linux/stringhash.h>
+#include <linux/wait.h>
 
 struct path;
 struct vfsmount;
