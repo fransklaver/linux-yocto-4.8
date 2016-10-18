@@ -7565,13 +7565,13 @@ int sched_cpu_dying(unsigned int cpu)
 	BUG_ON(rq->nr_running != 1);
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
 	calc_load_migrate(rq);
+	update_max_interval();
+	nohz_balance_exit_idle(cpu);
+	hrtick_clear(rq);
 	if (per_cpu(idle_last_mm, cpu)) {
 		mmdrop(per_cpu(idle_last_mm, cpu));
 		per_cpu(idle_last_mm, cpu) = NULL;
 	}
-	update_max_interval();
-	nohz_balance_exit_idle(cpu);
-	hrtick_clear(rq);
 	return 0;
 }
 #endif
