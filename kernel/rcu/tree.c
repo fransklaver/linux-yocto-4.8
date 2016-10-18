@@ -467,11 +467,13 @@ EXPORT_SYMBOL_GPL(rcu_batches_started_sched);
 /*
  * Return the number of RCU BH batches started thus far for debug & stats.
  */
+#ifndef CONFIG_PREEMPT_RT_FULL
 unsigned long rcu_batches_started_bh(void)
 {
 	return rcu_bh_state.gpnum;
 }
 EXPORT_SYMBOL_GPL(rcu_batches_started_bh);
+#endif
 
 /*
  * Return the number of RCU batches completed thus far for debug & stats.
@@ -500,6 +502,7 @@ unsigned long rcu_batches_completed_bh(void)
 	return rcu_bh_state.completed;
 }
 EXPORT_SYMBOL_GPL(rcu_batches_completed_bh);
+#endif
 
 /*
  * Return the number of RCU expedited batches completed thus far for
@@ -523,6 +526,7 @@ unsigned long rcu_exp_batches_completed_sched(void)
 }
 EXPORT_SYMBOL_GPL(rcu_exp_batches_completed_sched);
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 /*
  * Force a quiescent state.
  */
@@ -598,9 +602,11 @@ void rcutorture_get_gp_data(enum rcutorture_type test_type, int *flags,
 	case RCU_FLAVOR:
 		rsp = rcu_state_p;
 		break;
+#ifndef CONFIG_PREEMPT_RT_FULL
 	case RCU_BH_FLAVOR:
 		rsp = &rcu_bh_state;
 		break;
+#endif
 	case RCU_SCHED_FLAVOR:
 		rsp = &rcu_sched_state;
 		break;
@@ -4315,7 +4321,9 @@ void __init rcu_init(void)
 
 	rcu_bootup_announce();
 	rcu_init_geometry();
+#ifndef CONFIG_PREEMPT_RT_FULL
 	rcu_init_one(&rcu_bh_state);
+#endif
 	rcu_init_one(&rcu_sched_state);
 	if (dump_tree)
 		rcu_dump_rcu_node_tree(&rcu_sched_state);
