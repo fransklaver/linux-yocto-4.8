@@ -1087,15 +1087,17 @@ static void free_pcppages_bulk(struct zone *zone, int count,
 	unsigned long flags;
 
 	spin_lock_irqsave(&zone->lock, flags);
+
 	isolated_pageblocks = has_isolate_pageblock(zone);
 	nr_scanned = node_page_state(zone->zone_pgdat, NR_PAGES_SCANNED);
 	if (nr_scanned)
 		__mod_node_page_state(zone->zone_pgdat, NR_PAGES_SCANNED, -nr_scanned);
 
 	while (!list_empty(list)) {
-		struct page *page = list_first_entry(list, struct page, lru);
+		struct page *page;
 		int mt;	/* migratetype of the to-be-freed page */
 
+		page = list_first_entry(list, struct page, lru);
 		/* must delete as __free_one_page list manipulates */
 		list_del(&page->lru);
 
