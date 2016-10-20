@@ -121,6 +121,7 @@ unsigned long rcu_batches_completed_bh(void);
 #else
 # define rcu_bh_force_quiescent_state	rcu_force_quiescent_state
 # define rcu_batches_completed_bh	rcu_batches_completed
+# define rcu_batches_started_bh		rcu_batches_completed
 #endif
 
 void rcu_all_qs(void);
