@@ -51,7 +51,6 @@ static DEFINE_PER_CPU(struct pagevec, lru_deactivate_pvecs);
 #ifdef CONFIG_SMP
 static DEFINE_PER_CPU(struct pagevec, activate_page_pvecs);
 #endif
-
 static DEFINE_LOCAL_IRQ_LOCK(rotate_lock);
 DEFINE_LOCAL_IRQ_LOCK(swapvec_lock);
 
@@ -674,7 +673,6 @@ void lru_add_drain(void)
 	local_unlock_cpu(swapvec_lock);
 }
 
-
 #ifdef CONFIG_PREEMPT_RT_BASE
 static inline void remote_lru_add_drain(int cpu, struct cpumask *has_work)
 {
@@ -685,26 +683,11 @@ static inline void remote_lru_add_drain(int cpu, struct cpumask *has_work)
 
 #else
 
-static void lru_add_drain_per_cpu(struct work_struct *dummy)
-{
-	lru_add_drain();
-}
-
-static DEFINE_PER_CPU(struct work_struct, lru_add_drain_work);
-static struct workqueue_struct *lru_add_drain_wq;
-static inline void remote_lru_add_drain(int cpu, struct cpumask *has_work)
-{
-	struct work_struct *work = &per_cpu(lru_add_drain_work, cpu);
-
-	INIT_WORK(work, lru_add_drain_per_cpu);
-	queue_work_on(cpu, lru_add_drain_wq, work);
-	cpumask_set_cpu(cpu, has_work);
-}
-
 /*
  * lru_add_drain_wq is used to do lru_add_drain_all() from a WQ_MEM_RECLAIM
  * workqueue, aiding in getting memory freed.
  */
+static struct workqueue_struct *lru_add_drain_wq;
 
 static int __init lru_init(void)
 {
@@ -718,7 +701,21 @@ static int __init lru_init(void)
 }
 early_initcall(lru_init);
 
-#endif /* !RT_BASE */
+static void lru_add_drain_per_cpu(struct work_struct *dummy)
+{
+	lru_add_drain();
+}
+
+static DEFINE_PER_CPU(struct work_struct, lru_add_drain_work);
+static inline void remote_lru_add_drain(int cpu, struct cpumask *has_work)
+{
+	struct work_struct *work = &per_cpu(lru_add_drain_work, cpu);
+
+	INIT_WORK(work, lru_add_drain_per_cpu);
+	queue_work_on(cpu, lru_add_drain_wq, work);
+	cpumask_set_cpu(cpu, has_work);
+}
+#endif
 
 void lru_add_drain_all(void)
 {

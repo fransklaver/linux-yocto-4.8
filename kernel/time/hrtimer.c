@@ -48,7 +48,6 @@
 #include <linux/sched/rt.h>
 #include <linux/sched/deadline.h>
 #include <linux/timer.h>
-#include <linux/kthread.h>
 #include <linux/freezer.h>
 
 #include <asm/uaccess.h>
@@ -697,6 +696,29 @@ static void hrtimer_switch_to_hres(void)
 	retrigger_next_event(NULL);
 }
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+
+static struct swork_event clock_set_delay_work;
+
+static void run_clock_set_delay(struct swork_event *event)
+{
+	clock_was_set();
+}
+
+void clock_was_set_delayed(void)
+{
+	swork_queue(&clock_set_delay_work);
+}
+
+static __init int create_clock_set_delay_thread(void)
+{
+	WARN_ON(swork_get());
+	INIT_SWORK(&clock_set_delay_work, run_clock_set_delay);
+	return 0;
+}
+early_initcall(create_clock_set_delay_thread);
+#else /* PREEMPT_RT_FULL */
+
 static void clock_was_set_work(struct work_struct *work)
 {
 	clock_was_set();
@@ -704,44 +726,6 @@ static void clock_was_set_work(struct work_struct *work)
 
 static DECLARE_WORK(hrtimer_work, clock_was_set_work);
 
-#ifdef CONFIG_PREEMPT_RT_FULL
-/*
- * RT can not call schedule_work from real interrupt context.
- * Need to make a thread to do the real work.
- */
-static struct task_struct *clock_set_delay_thread;
-static bool do_clock_set_delay;
-
-static int run_clock_set_delay(void *ignore)
-{
-	while (!kthread_should_stop()) {
-		set_current_state(TASK_INTERRUPTIBLE);
-		if (do_clock_set_delay) {
-			do_clock_set_delay = false;
-			schedule_work(&hrtimer_work);
-		}
-		schedule();
-	}
-	__set_current_state(TASK_RUNNING);
-	return 0;
-}
-
-void clock_was_set_delayed(void)
-{
-	do_clock_set_delay = true;
-	/* Make visible before waking up process */
-	smp_wmb();
-	wake_up_process(clock_set_delay_thread);
-}
-
-static __init int create_clock_set_delay_thread(void)
-{
-	clock_set_delay_thread = kthread_run(run_clock_set_delay, NULL, "kclksetdelayd");
-	BUG_ON(!clock_set_delay_thread);
-	return 0;
-}
-early_initcall(create_clock_set_delay_thread);
-#else /* PREEMPT_RT_FULL */
 /*
  * Called from timekeeping and resume code to reprogramm the hrtimer
  * interrupt device on all cpus.
@@ -1903,18 +1887,25 @@ int hrtimers_dead_cpu(unsigned int scpu)
 #endif /* CONFIG_HOTPLUG_CPU */
 
 #ifdef CONFIG_PREEMPT_RT_BASE
+
 static void run_hrtimer_softirq(struct softirq_action *h)
 {
 	hrtimer_rt_run_pending();
 }
+
+static void hrtimers_open_softirq(void)
+{
+	open_softirq(HRTIMER_SOFTIRQ, run_hrtimer_softirq);
+}
+
+#else
+static void hrtimers_open_softirq(void) { }
 #endif
 
 void __init hrtimers_init(void)
 {
 	hrtimers_prepare_cpu(smp_processor_id());
-#ifdef CONFIG_PREEMPT_RT_BASE
-	open_softirq(HRTIMER_SOFTIRQ, run_hrtimer_softirq);
-#endif
+	hrtimers_open_softirq();
 }
 
 /**

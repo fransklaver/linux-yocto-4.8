@@ -10,7 +10,6 @@
 #include <linux/workqueue.h>
 #include <linux/hrtimer.h>
 #include <linux/jiffies.h>
-#include <linux/kthread.h>
 #include <linux/math64.h>
 #include <linux/timex.h>
 #include <linux/time.h>
@@ -18,6 +17,7 @@
 #include <linux/module.h>
 #include <linux/rtc.h>
 #include <linux/math64.h>
+#include <linux/swork.h>
 
 #include "ntp_internal.h"
 #include "timekeeping_internal.h"
@@ -570,40 +570,23 @@ static void sync_cmos_clock(struct work_struct *work)
 }
 
 #ifdef CONFIG_PREEMPT_RT_FULL
-/*
- * RT can not call schedule_delayed_work from real interrupt context.
- * Need to make a thread to do the real work.
- */
-static struct task_struct *cmos_delay_thread;
-static bool do_cmos_delay;
 
-static int run_cmos_delay(void *ignore)
+static void run_clock_set_delay(struct swork_event *event)
 {
-	while (!kthread_should_stop()) {
-		set_current_state(TASK_INTERRUPTIBLE);
-		if (do_cmos_delay) {
-			do_cmos_delay = false;
-			queue_delayed_work(system_power_efficient_wq,
-					   &sync_cmos_work, 0);
-		}
-		schedule();
-	}
-	__set_current_state(TASK_RUNNING);
-	return 0;
+	queue_delayed_work(system_power_efficient_wq, &sync_cmos_work, 0);
 }
+
+static struct swork_event ntp_cmos_swork;
 
 void ntp_notify_cmos_timer(void)
 {
-	do_cmos_delay = true;
-	/* Make visible before waking up process */
-	smp_wmb();
-	wake_up_process(cmos_delay_thread);
+	swork_queue(&ntp_cmos_swork);
 }
 
 static __init int create_cmos_delay_thread(void)
 {
-	cmos_delay_thread = kthread_run(run_cmos_delay, NULL, "kcmosdelayd");
-	BUG_ON(!cmos_delay_thread);
+	WARN_ON(swork_get());
+	INIT_SWORK(&ntp_cmos_swork, run_clock_set_delay);
 	return 0;
 }
 early_initcall(create_cmos_delay_thread);

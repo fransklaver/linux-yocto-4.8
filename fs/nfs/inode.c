@@ -1957,9 +1957,11 @@ static void init_once(void *foo)
 	nfsi->nrequests = 0;
 	nfsi->commit_info.ncommit = 0;
 	atomic_set(&nfsi->commit_info.rpcs_out, 0);
-	atomic_set(&nfsi->silly_count, 1);
-	INIT_HLIST_HEAD(&nfsi->silly_list);
-	init_waitqueue_head(&nfsi->waitqueue);
+#ifdef CONFIG_PREEMPT_RT_BASE
+	sema_init(&nfsi->rmdir_sem, 1);
+#else
+	init_rwsem(&nfsi->rmdir_sem);
+#endif
 	nfs4_init_once(nfsi);
 }
 

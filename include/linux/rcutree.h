@@ -90,7 +90,6 @@ void cond_synchronize_sched(unsigned long oldstate);
 extern unsigned long rcutorture_testseq;
 extern unsigned long rcutorture_vernum;
 unsigned long rcu_batches_started(void);
-unsigned long rcu_batches_started_bh(void);
 unsigned long rcu_batches_started_sched(void);
 unsigned long rcu_batches_completed(void);
 unsigned long rcu_batches_completed_sched(void);
@@ -117,10 +116,12 @@ bool rcu_is_watching(void);
 
 #ifndef CONFIG_PREEMPT_RT_FULL
 void rcu_bh_force_quiescent_state(void);
+unsigned long rcu_batches_started_bh(void);
 unsigned long rcu_batches_completed_bh(void);
 #else
 # define rcu_bh_force_quiescent_state	rcu_force_quiescent_state
 # define rcu_batches_completed_bh	rcu_batches_completed
+# define rcu_batches_started_bh		rcu_batches_completed
 #endif
 
 void rcu_all_qs(void);

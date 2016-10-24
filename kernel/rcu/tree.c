@@ -502,6 +502,7 @@ unsigned long rcu_batches_completed_bh(void)
 	return rcu_bh_state.completed;
 }
 EXPORT_SYMBOL_GPL(rcu_batches_completed_bh);
+#endif
 
 /*
  * Return the number of RCU expedited batches completed thus far for
@@ -525,6 +526,7 @@ unsigned long rcu_exp_batches_completed_sched(void)
 }
 EXPORT_SYMBOL_GPL(rcu_exp_batches_completed_sched);
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 /*
  * Force a quiescent state.
  */

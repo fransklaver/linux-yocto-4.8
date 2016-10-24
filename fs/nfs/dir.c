@@ -485,7 +485,7 @@ static
 void nfs_prime_dcache(struct dentry *parent, struct nfs_entry *entry)
 {
 	struct qstr filename = QSTR_INIT(entry->name, entry->len);
-	DECLARE_WAIT_QUEUE_HEAD_ONSTACK(wq);
+	DECLARE_SWAIT_QUEUE_HEAD_ONSTACK(wq);
 	struct dentry *dentry;
 	struct dentry *alias;
 	struct inode *dir = d_inode(parent);
@@ -914,7 +914,6 @@ static int nfs_readdir(struct file *file, struct dir_context *ctx)
 	desc->decode = NFS_PROTO(inode)->decode_dirent;
 	desc->plus = nfs_use_readdirplus(inode, ctx) ? 1 : 0;
 
-	nfs_block_sillyrename(dentry);
 	if (ctx->pos == 0 || nfs_dir_mapping_need_revalidate(inode))
 		res = nfs_revalidate_mapping(inode, file->f_mapping);
 	if (res < 0)
@@ -950,7 +949,6 @@ static int nfs_readdir(struct file *file, struct dir_context *ctx)
 			break;
 	} while (!desc->eof);
 out:
-	nfs_unblock_sillyrename(dentry);
 	if (res > 0)
 		res = 0;
 	dfprintk(FILE, "NFS: readdir(%pD2) returns %d\n", file, res);
@@ -1370,7 +1368,6 @@ EXPORT_SYMBOL_GPL(nfs_dentry_operations);
 struct dentry *nfs_lookup(struct inode *dir, struct dentry * dentry, unsigned int flags)
 {
 	struct dentry *res;
-	struct dentry *parent;
 	struct inode *inode = NULL;
 	struct nfs_fh *fhandle = NULL;
 	struct nfs_fattr *fattr = NULL;
@@ -1400,21 +1397,18 @@ struct dentry *nfs_lookup(struct inode *dir, struct dentry * dentry, unsigned in
 	if (IS_ERR(label))
 		goto out;
 
-	parent = dentry->d_parent;
-	/* Protect against concurrent sillydeletes */
 	trace_nfs_lookup_enter(dir, dentry, flags);
-	nfs_block_sillyrename(parent);
 	error = NFS_PROTO(dir)->lookup(dir, &dentry->d_name, fhandle, fattr, label);
 	if (error == -ENOENT)
 		goto no_entry;
 	if (error < 0) {
 		res = ERR_PTR(error);
-		goto out_unblock_sillyrename;
+		goto out_label;
 	}
 	inode = nfs_fhget(dentry->d_sb, fhandle, fattr, label);
 	res = ERR_CAST(inode);
 	if (IS_ERR(res))
-		goto out_unblock_sillyrename;
+		goto out_label;
 
 	/* Success: notify readdir to use READDIRPLUS */
 	nfs_advise_use_readdirplus(dir);
@@ -1423,12 +1417,11 @@ no_entry:
 	res = d_splice_alias(inode, dentry);
 	if (res != NULL) {
 		if (IS_ERR(res))
-			goto out_unblock_sillyrename;
+			goto out_label;
 		dentry = res;
 	}
 	nfs_set_verifier(dentry, nfs_save_change_attribute(dir));
-out_unblock_sillyrename:
-	nfs_unblock_sillyrename(parent);
+out_label:
 	trace_nfs_lookup_exit(dir, dentry, flags, error);
 	nfs4_label_free(label);
 out:
@@ -1491,7 +1484,7 @@ int nfs_atomic_open(struct inode *dir, struct dentry *dentry,
 		    struct file *file, unsigned open_flags,
 		    umode_t mode, int *opened)
 {
-	DECLARE_WAIT_QUEUE_HEAD_ONSTACK(wq);
+	DECLARE_SWAIT_QUEUE_HEAD_ONSTACK(wq);
 	struct nfs_open_context *ctx;
 	struct dentry *res;
 	struct iattr attr = { .ia_valid = ATTR_OPEN };
@@ -1553,9 +1546,7 @@ int nfs_atomic_open(struct inode *dir, struct dentry *dentry,
 		goto out;
 
 	trace_nfs_atomic_open_enter(dir, ctx, open_flags);
-	nfs_block_sillyrename(dentry->d_parent);
 	inode = NFS_PROTO(dir)->open_context(dir, ctx, open_flags, &attr, opened);
-	nfs_unblock_sillyrename(dentry->d_parent);
 	if (IS_ERR(inode)) {
 		err = PTR_ERR(inode);
 		trace_nfs_atomic_open_exit(dir, ctx, open_flags, err);
@@ -1808,7 +1799,11 @@ int nfs_rmdir(struct inode *dir, struct dentry *dentry)
 
 	trace_nfs_rmdir_enter(dir, dentry);
 	if (d_really_is_positive(dentry)) {
-		nfs_wait_on_sillyrename(dentry);
+#ifdef CONFIG_PREEMPT_RT_BASE
+		down(&NFS_I(d_inode(dentry))->rmdir_sem);
+#else
+		down_write(&NFS_I(d_inode(dentry))->rmdir_sem);
+#endif
 		error = NFS_PROTO(dir)->rmdir(dir, &dentry->d_name);
 		/* Ensure the VFS deletes this inode */
 		switch (error) {
@@ -1818,6 +1813,11 @@ int nfs_rmdir(struct inode *dir, struct dentry *dentry)
 		case -ENOENT:
 			nfs_dentry_handle_enoent(dentry);
 		}
+#ifdef CONFIG_PREEMPT_RT_BASE
+		up(&NFS_I(d_inode(dentry))->rmdir_sem);
+#else
+		up_write(&NFS_I(d_inode(dentry))->rmdir_sem);
+#endif
 	} else
 		error = NFS_PROTO(dir)->rmdir(dir, &dentry->d_name);
 	trace_nfs_rmdir_exit(dir, dentry, error);

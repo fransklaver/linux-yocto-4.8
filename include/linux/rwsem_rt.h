@@ -52,15 +52,16 @@ do {							\
 } while (0)
 
 extern void rt_down_write(struct rw_semaphore *rwsem);
+extern int  rt_down_write_killable(struct rw_semaphore *rwsem);
 extern void rt_down_read_nested(struct rw_semaphore *rwsem, int subclass);
 extern void rt_down_write_nested(struct rw_semaphore *rwsem, int subclass);
+extern int  rt_down_write_killable_nested(struct rw_semaphore *rwsem,
+					  int subclass);
 extern void rt_down_write_nested_lock(struct rw_semaphore *rwsem,
 				      struct lockdep_map *nest);
 extern void rt__down_read(struct rw_semaphore *rwsem);
 extern void rt_down_read(struct rw_semaphore *rwsem);
 extern int  rt_down_write_trylock(struct rw_semaphore *rwsem);
-extern int  rt_down_write_killable(struct rw_semaphore *rwsem);
-extern int  rt_down_write_killable_nested(struct rw_semaphore *rwsem, int subclass);
 extern int  rt__down_read_trylock(struct rw_semaphore *rwsem);
 extern int  rt_down_read_trylock(struct rw_semaphore *rwsem);
 extern void __rt_up_read(struct rw_semaphore *rwsem);
@@ -102,19 +103,14 @@ static inline void down_write(struct rw_semaphore *sem)
 	rt_down_write(sem);
 }
 
-static inline int down_write_trylock(struct rw_semaphore *sem)
-{
-	return rt_down_write_trylock(sem);
-}
-
 static inline int down_write_killable(struct rw_semaphore *sem)
 {
 	return rt_down_write_killable(sem);
 }
 
-static inline int down_write_killable_nested(struct rw_semaphore *sem, int subclass)
+static inline int down_write_trylock(struct rw_semaphore *sem)
 {
-	return rt_down_write_killable_nested(sem, subclass);
+	return rt_down_write_trylock(sem);
 }
 
 static inline void __up_read(struct rw_semaphore *sem)
@@ -146,6 +142,13 @@ static inline void down_write_nested(struct rw_semaphore *sem, int subclass)
 {
 	rt_down_write_nested(sem, subclass);
 }
+
+static inline int down_write_killable_nested(struct rw_semaphore *sem,
+					     int subclass)
+{
+	return rt_down_write_killable_nested(sem, subclass);
+}
+
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 static inline void down_write_nest_lock(struct rw_semaphore *sem,
 		struct rw_semaphore *nest_lock)
